@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { AnyCard, CollectionCard, MtgCard, RiftboundCard, PokemonCard } from '$lib/types';
-	import { cardImageUrl, rarityClass } from '$lib/types';
+	import { cardImageUrl, isMultiFacedCard, rarityClass } from '$lib/types';
 	import { cachedImageUrl, syncCachedImageUrl } from '$lib/imageCache';
 	import { app } from '$lib/state.svelte';
 	import MtgCardDetail from './MtgCardDetail.svelte';
@@ -39,7 +39,23 @@
 	// lives in `setShortCode` instead.
 	const setDisplayCode = $derived(isPoke ? poke.setShortCode : card.setCode);
 
-	const rawImgUrl = $derived(cardImageUrl(card as Parameters<typeof cardImageUrl>[0]));
+	// Dual-faced cards (MDFCs, transform cards) — offer a flip button to view
+	// the other face's artwork.
+	const multiFaced = $derived(isMtg && isMultiFacedCard(card));
+	let showBack = $state(false);
+	// Reset to the front face whenever a different card is opened.
+	$effect(() => {
+		card.id;
+		showBack = false;
+	});
+	function toggleFace(e: MouseEvent) {
+		e.stopPropagation();
+		showBack = !showBack;
+	}
+
+	const rawImgUrl = $derived(
+		cardImageUrl(card as Parameters<typeof cardImageUrl>[0], showBack ? 'back' : 'front')
+	);
 	let imgUrl = $state('');
 	$effect(() => {
 		const raw = rawImgUrl;
@@ -75,15 +91,26 @@
 					{#if imgExpanded}
 						<button class="img-expand-backdrop" onclick={toggleImgExpanded} aria-label="Shrink image"></button>
 					{/if}
-					<button
-						class="card-detail-img-btn"
-						class:expanded={imgExpanded}
-						onclick={toggleImgExpanded}
-						title={imgExpanded ? 'Click to shrink' : 'Click to enlarge'}
-						aria-label={imgExpanded ? 'Shrink card image' : 'Enlarge card image'}
-					>
-						<img src={imgUrl} alt={card.name} />
-					</button>
+					<div class="card-detail-img-wrap" class:expanded={imgExpanded}>
+						<button
+							class="card-detail-img-btn"
+							onclick={toggleImgExpanded}
+							title={imgExpanded ? 'Click to shrink' : 'Click to enlarge'}
+							aria-label={imgExpanded ? 'Shrink card image' : 'Enlarge card image'}
+						>
+							<img src={imgUrl} alt={card.name} />
+						</button>
+						{#if multiFaced}
+							<button
+								class="flip-card-btn"
+								onclick={toggleFace}
+								title={showBack ? 'Show front face' : 'Show back face'}
+								aria-label={showBack ? 'Show front face' : 'Show back face'}
+							>
+								⟳ Flip
+							</button>
+						{/if}
+					</div>
 				{:else}
 					<div class="card-detail-art-placeholder">
 						<div style="font-size: 2.5rem;">🃏</div>
@@ -160,6 +187,10 @@
 		display: block;
 	}
 
+	.card-detail-img-wrap {
+		position: relative;
+	}
+
 	.card-detail-img-btn {
 		display: block;
 		width: 100%;
@@ -171,9 +202,11 @@
 
 	.card-detail-img-btn img {
 		border-radius: var(--radius-lg);
+		width: 100%;
+		display: block;
 	}
 
-	.card-detail-img-btn.expanded {
+	.card-detail-img-wrap.expanded {
 		position: fixed;
 		top: 50%;
 		left: 50%;
@@ -182,14 +215,38 @@
 		height: 92vh;
 		max-width: 92vw;
 		z-index: 310;
+	}
+
+	.card-detail-img-wrap.expanded .card-detail-img-btn {
+		height: 100%;
 		cursor: zoom-out;
 	}
 
-	.card-detail-img-btn.expanded img {
+	.card-detail-img-wrap.expanded .card-detail-img-btn img {
 		height: 100%;
 		width: auto;
 		max-width: 92vw;
 		box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+	}
+
+	.flip-card-btn {
+		position: absolute;
+		bottom: 10px;
+		right: 10px;
+		z-index: 5;
+		padding: 5px 10px;
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		background: rgba(0, 0, 0, 0.65);
+		color: #fff;
+		font-size: 0.78rem;
+		font-weight: 600;
+		cursor: pointer;
+		backdrop-filter: blur(2px);
+	}
+
+	.flip-card-btn:hover {
+		background: rgba(0, 0, 0, 0.85);
 	}
 
 	.img-expand-backdrop {

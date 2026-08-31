@@ -95,6 +95,10 @@ pub struct APICardSearchFilters {
     pub sort_by: Option<APISortField>,
     #[serde(alias = "sortOrder")]
     pub sort_order: Option<APISortOrder>,
+    /// MTG-only: when true, return every printing of a card instead of
+    /// collapsing to one representative printing per name.
+    #[serde(alias = "allPrintings")]
+    pub all_printings: Option<bool>,
 }
 
 impl From<APICardSearchFilters> for models::filters::CardSearchFilters {
@@ -141,6 +145,7 @@ impl From<APICardSearchFilters> for models::filters::CardSearchFilters {
             pokedex: value.pokedex,
             sort_by: value.sort_by.map(models::filters::SortField::from),
             sort_order: value.sort_order.map(models::filters::SortOrder::from),
+            all_printings: value.all_printings,
         }
     }
 }

@@ -400,6 +400,15 @@ export async function searchMtg(filters: SearchFilters, page: number): Promise<M
 	});
 }
 
+/** All known printings (sets/collector numbers) of a single MTG card, by its exact name. */
+export async function getMtgPrintings(exactName: string): Promise<MtgCard[]> {
+	return fetchJSON(`/api/mtg/cards/search?limit=500&skip=0`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ name: exactName, allPrintings: true })
+	});
+}
+
 export async function searchRiftbound(filters: SearchFilters, page: number): Promise<RiftboundCard[]> {
 	return fetchJSON(`/api/riftbound/cards/search?limit=${PAGE_SIZE}&skip=${(page - 1) * PAGE_SIZE}`, {
 		method: 'POST',
@@ -563,6 +572,7 @@ function buildSearchBody(filters: SearchFilters): Record<string, unknown> {
 	if (filters.isFullArt) body.isFullArt = filters.isFullArt === 'true';
 	if (filters.borderColor) body.borderColor = filters.borderColor;
 	if (filters.legalIn) body.legalIn = filters.legalIn;
+	if (filters.allPrintings) body.allPrintings = true;
 	return body;
 }
 

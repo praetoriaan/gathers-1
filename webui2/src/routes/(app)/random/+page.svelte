@@ -3,16 +3,20 @@
 	import { getRandomMtgCard, getRandomRiftboundCard, getRandomPokemonCard, addCardToCollection } from '$lib/api';
 	import CardTile from '$lib/components/CardTile.svelte';
 	import CardDetailModal from '$lib/components/CardDetailModal.svelte';
+	import PrintingPickerModal from '$lib/components/PrintingPickerModal.svelte';
 	import type { AnyCard, CollectionCard } from '$lib/types';
 
 	let selectedSystems = $state<string[]>([]);
 	let card = $state<AnyCard | null>(null);
+	let cardSystem = $state('');
 	let loading = $state(false);
 	let error = $state('');
 	let detailCard = $state<AnyCard | null>(null);
+	let printingPickerFor = $state<string | null>(null);
 
 	let addTarget = $state<AnyCard | null>(null);
 	let addCollection = $state('');
+	let addQty = $state('1');
 	let toast = $state('');
 
 	// Default to every enabled system once system info has loaded.
@@ -49,6 +53,7 @@
 				: pick === 'PokemonSQLite'
 				? await getRandomPokemonCard()
 				: await getRandomMtgCard();
+			cardSystem = pick;
 		} catch (e) {
 			error = String(e);
 			card = null;
@@ -60,15 +65,28 @@
 	function promptAdd(c: AnyCard | CollectionCard) {
 		if (!app.collectionsEnabled) return;
 		addTarget = c as AnyCard;
+		addQty = '1';
+	}
+
+	function choosePrinting(c: AnyCard | CollectionCard) {
+		if (!app.collectionsEnabled) return;
+		printingPickerFor = c.name;
+	}
+
+	function printingSelected(picked: AnyCard) {
+		printingPickerFor = null;
+		promptAdd(picked);
 	}
 
 	async function confirmAdd() {
 		if (!addTarget || !addCollection) return;
+		const qtyParsed = parseInt(addQty, 10);
+		const qty = Number.isFinite(qtyParsed) && qtyParsed > 0 ? qtyParsed : 1;
 		try {
-			await app.withOp(`Adding ${addTarget.name}`, () =>
-				addCardToCollection(addCollection, addTarget!.id, 1, 0, null)
+			await app.withOp(`Adding ${qty > 1 ? `${qty}x ` : ''}${addTarget.name}`, () =>
+				addCardToCollection(addCollection, addTarget!.id, qty, 0, null)
 			);
-			toast = `Added "${addTarget.name}" to ${addCollection}`;
+			toast = `Added ${qty > 1 ? `${qty}x ` : ''}"${addTarget.name}" to ${addCollection}`;
 			setTimeout(() => toast = '', 3000);
 		} catch (e) {
 			toast = `Error: ${e}`;
@@ -144,6 +162,7 @@
 					{card}
 					onclick={(c) => detailCard = c as AnyCard}
 					onAdd={app.collectionsEnabled ? promptAdd : undefined}
+					onChoosePrinting={app.collectionsEnabled && cardSystem !== 'RiftboundSQLite' && cardSystem !== 'PokemonSQLite' ? choosePrinting : undefined}
 				/>
 			</div>
 		{/if}
@@ -154,6 +173,14 @@
 	<CardDetailModal card={detailCard} onclose={() => detailCard = null} />
 {/if}
 
+{#if printingPickerFor}
+	<PrintingPickerModal
+		cardName={printingPickerFor}
+		onSelect={printingSelected}
+		onclose={() => printingPickerFor = null}
+	/>
+{/if}
+
 <!-- Add to collection dialog -->
 {#if addTarget}
 	<div class="confirm-overlay" role="dialog" aria-modal="true">
@@ -161,11 +188,21 @@
 			<h4>Add to collection</h4>
 			<p>Add <strong>{addTarget.name}</strong> to:</p>
 			{#if app.collections.length > 0}
-				<select class="input" bind:value={addCollection} style="margin-bottom: 16px;">
+				<select class="input" bind:value={addCollection} style="margin-bottom: 10px;">
 					{#each app.collections as col}
 						<option value={col.id}>{col.id}</option>
 					{/each}
 				</select>
+				<div style="display:flex; align-items:center; gap:6px; margin-bottom:16px;">
+					<span style="color:var(--text2); font-size:0.85rem;">Quantity:</span>
+					<!-- svelte-ignore a11y_autofocus -->
+					<input
+						type="number" min="1" step="1" placeholder="1"
+						class="input" style="width:80px; height:32px; padding:4px 8px; font-family:'JetBrains Mono',monospace;"
+						bind:value={addQty}
+						autofocus
+					/>
+				</div>
 			{:else}
 				<p style="color: var(--danger); font-size: 0.85rem;">No collections yet. Create one first.</p>
 			{/if}

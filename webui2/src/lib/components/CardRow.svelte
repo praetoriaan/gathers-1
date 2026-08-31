@@ -22,9 +22,13 @@
 		onAdjust?: (card: CollectionCard, delta: number, foil: boolean, purchasePrice?: number | null) => void;
 		onWantAdjust?: (card: CollectionCard, delta: number) => void;
 		onclick?: (card: AnyCard | CollectionCard) => void;
+		/** Opens a picker for choosing a specific printing of this card (MTG-only). */
+		onChoosePrinting?: (card: AnyCard | CollectionCard) => void;
+		/** Quantity that onAdd/onAddFoil/onAddWanted will add, shown on the Add dropdown's buttons. */
+		addQuantity?: number;
 	}
 
-	let { card, collectionMode = false, selectable = true, collection = '', price = null, cardPrices, onAdd, onAddFoil, onAddWanted, onAdjust, onWantAdjust, onclick }: Props = $props();
+	let { card, collectionMode = false, selectable = true, collection = '', price = null, cardPrices, onAdd, onAddFoil, onAddWanted, onAdjust, onWantAdjust, onclick, onChoosePrinting, addQuantity = 1 }: Props = $props();
 
 	const col = $derived(card as CollectionCard);
 	const isSelected = $derived(app.selectedCards.has(card.id));
@@ -97,6 +101,8 @@
 					onAdd={onAdd ? () => onAdd(card) : undefined}
 					onAddFoil={onAddFoil ? () => onAddFoil(card) : undefined}
 					onAddWanted={onAddWanted ? () => onAddWanted(card) : undefined}
+					onChoosePrinting={onChoosePrinting ? () => onChoosePrinting(card) : undefined}
+					quantity={addQuantity}
 				/>
 			{/if}
 		</div>

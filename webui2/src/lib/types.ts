@@ -165,6 +165,9 @@ export interface SearchFilters {
 	isFullArt: TriState;
 	borderColor: string;
 	legalIn: string;
+	// MTG-only: when true, return every printing of `name` (requires an exact
+	// name) instead of collapsing to one representative printing.
+	allPrintings?: boolean;
 }
 
 // '' = don't filter, 'true'/'false' = require present/absent
@@ -305,14 +308,30 @@ export const legalityFormats: { value: string; label: string }[] = [
 // Known mtgjson `borderColor` values.
 export const borderColors = ['black', 'white', 'borderless', 'silver', 'gold', 'yellow'];
 
-export function cardImageUrl(card: CollectionCard | MtgCard | RiftboundCard | PokemonCard): string {
+export function cardImageUrl(
+	card: CollectionCard | MtgCard | RiftboundCard | PokemonCard,
+	face: 'front' | 'back' = 'front'
+): string {
 	// Riftbound and Pokemon store image URL directly
 	const directImage = (card as CollectionCard | RiftboundCard | PokemonCard).image;
 	if (directImage) return directImage;
 	// MTG cards use Scryfall identifiers
 	const ids = (card as CollectionCard).cardIdentifiers ?? (card as MtgCard).cardIdentifiers;
 	if (ids?.scryfallId) {
-		return `https://api.scryfall.com/cards/${ids.scryfallId}?format=image`;
+		const suffix = face === 'back' ? '&face=back' : '';
+		return `https://api.scryfall.com/cards/${ids.scryfallId}?format=image${suffix}`;
 	}
 	return '';
+}
+
+/**
+ * Whether an MTG card has two faces with separate artwork (modal
+ * double-faced cards, transform cards, and split cards all use this same
+ * "Front // Back" naming from Scryfall — flip cards and Adventures share the
+ * combined name too, but Scryfall serves the same single artwork for both
+ * "faces" of those, so requesting `face=back` for them just returns the same
+ * image rather than an error).
+ */
+export function isMultiFacedCard(card: CollectionCard | MtgCard | RiftboundCard | PokemonCard): boolean {
+	return typeof card.name === 'string' && card.name.includes(' // ');
 }

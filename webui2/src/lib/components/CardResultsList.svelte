@@ -25,6 +25,10 @@
 		onAdjust?: (card: CollectionCard, delta: number, foil: boolean, purchasePrice?: number | null) => void;
 		onWantAdjust?: (card: CollectionCard, delta: number) => void;
 		onclick?: (card: AnyCard | CollectionCard) => void;
+		/** Opens a picker for choosing a specific printing of this card (MTG-only). */
+		onChoosePrinting?: (card: AnyCard | CollectionCard) => void;
+		/** Quantity that onAdd/onAddFoil/onAddWanted will add, shown on each card's Add dropdown. */
+		addQuantity?: number;
 		sortBy?: string;
 		sortOrder?: 'Asc' | 'Desc';
 		onSortClick?: (field: string) => void;
@@ -38,7 +42,7 @@
 
 	let {
 		cards, viewMode, listHeaders, keyFn, collectionMode = false, selectable = true, collection = '',
-		prices = {}, onAdd, onAddFoil, onAddWanted, onAdjust, onWantAdjust, onclick, sortBy = '', sortOrder = 'Asc',
+		prices = {}, onAdd, onAddFoil, onAddWanted, onAdjust, onWantAdjust, onclick, onChoosePrinting, addQuantity = 1, sortBy = '', sortOrder = 'Asc',
 		onSortClick, total, page, onPageChange, gridClass = 'card-grid', gridStyle = '', listClass = 'card-list'
 	}: Props = $props();
 </script>
@@ -46,7 +50,7 @@
 {#if viewMode === 'grid'}
 	<div class={gridClass} style={gridStyle}>
 		{#each cards as card (keyFn(card))}
-			<CardTile {card} {collectionMode} {selectable} {collection} price={bestPrice(prices[card.id])} cardPrices={prices[card.id]} {onAdd} {onAddFoil} {onAddWanted} {onAdjust} {onWantAdjust} {onclick} />
+			<CardTile {card} {collectionMode} {selectable} {collection} price={bestPrice(prices[card.id])} cardPrices={prices[card.id]} {onAdd} {onAddFoil} {onAddWanted} {onAdjust} {onWantAdjust} {onclick} {onChoosePrinting} {addQuantity} />
 		{/each}
 	</div>
 {:else}
@@ -74,7 +78,7 @@
 			{/each}
 		</div>
 		{#each cards as card (keyFn(card))}
-			<CardRow {card} {collectionMode} {selectable} {collection} price={bestPrice(prices[card.id])} cardPrices={prices[card.id]} {onAdd} {onAddFoil} {onAddWanted} {onAdjust} {onWantAdjust} {onclick} />
+			<CardRow {card} {collectionMode} {selectable} {collection} price={bestPrice(prices[card.id])} cardPrices={prices[card.id]} {onAdd} {onAddFoil} {onAddWanted} {onAdjust} {onWantAdjust} {onclick} {addQuantity} />
 		{/each}
 	</div>
 {/if}
