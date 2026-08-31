@@ -2,6 +2,7 @@
 	import SearchPanel from './SearchPanel.svelte';
 	import CardResultsList from './CardResultsList.svelte';
 	import CardDetailModal from './CardDetailModal.svelte';
+	import PrintingPickerModal from './PrintingPickerModal.svelte';
 	import { searchMtg, searchRiftbound, searchPokemon, addCardToCollection, adjustWantQuantity, getMtgPrices, getPokemonPrices, PAGE_SIZE } from '$lib/api';
 	import { app } from '$lib/state.svelte';
 	import { defaultFilters } from '$lib/types';
@@ -23,10 +24,18 @@
 	let searched = $state(false);
 	let toast = $state('');
 	let addPrice = $state('');
+	let addQty = $state('1');
 	let activeSystem = $state('');
 	let viewMode = $state<ViewMode>('grid');
 	let prices = $state<Record<string, CardPrices>>({});
 	let detailCard = $state<AnyCard | null>(null);
+	let printingPickerFor = $state<string | null>(null);
+
+	// Parsed, sanitised quantity used for the next add (min 1, whole numbers only).
+	const addQtyNum = $derived.by(() => {
+		const n = parseInt(addQty, 10);
+		return Number.isFinite(n) && n > 0 ? n : 1;
+	});
 
 	$effect(() => {
 		if (!activeSystem && app.systems.length > 0) activeSystem = app.systems[0];
@@ -78,12 +87,13 @@
 	async function addCard(card: AnyCard | CollectionCard, foil = false) {
 		const price = addPrice !== '' ? parseFloat(addPrice) : null;
 		const purchasePrice = price != null && isFinite(price) && price > 0 ? price : null;
+		const qty = addQtyNum;
 		addPrice = '';
 		try {
-			await app.withOp(`Adding ${card.name}`, () =>
-				addCardToCollection(collection, card.id, foil ? 0 : 1, foil ? 1 : 0, purchasePrice)
+			await app.withOp(`Adding ${qty > 1 ? `${qty}x ` : ''}${card.name}`, () =>
+				addCardToCollection(collection, card.id, foil ? 0 : qty, foil ? qty : 0, purchasePrice)
 			);
-			toast = `Added ${card.name}${foil ? ' (foil)' : ''}`;
+			toast = `Added ${qty > 1 ? `${qty}x ` : ''}${card.name}${foil ? ' (foil)' : ''}`;
 			setTimeout(() => toast = '', 2000);
 			onAdded?.();
 		} catch {
@@ -93,17 +103,27 @@
 	}
 
 	async function addWanted(card: AnyCard | CollectionCard) {
+		const qty = addQtyNum;
 		try {
 			await app.withOp(`Adding ${card.name} to wantlist`, () =>
-				adjustWantQuantity(collection, card.id, 1)
+				adjustWantQuantity(collection, card.id, qty)
 			);
-			toast = `Added ${card.name} (wanted)`;
+			toast = `Added ${qty > 1 ? `${qty}x ` : ''}${card.name} (wanted)`;
 			setTimeout(() => toast = '', 2000);
 			onAdded?.();
 		} catch {
 			toast = 'Failed to add to wantlist';
 			setTimeout(() => toast = '', 2000);
 		}
+	}
+
+	function choosePrinting(card: AnyCard | CollectionCard) {
+		printingPickerFor = card.name;
+	}
+
+	function printingSelected(picked: AnyCard) {
+		printingPickerFor = null;
+		addCard(picked);
 	}
 
 	function onOverlayClick(e: MouseEvent) {
@@ -147,18 +167,31 @@
 				</div>
 			<button class="btn btn-ghost btn-icon" onclick={onclose} title="Close">✕</button>
 		</div>
-		<!-- Purchase price bar -->
-		<div style="padding: 8px 20px; border-bottom: 1px solid var(--border); background: var(--surface); display:flex; align-items:center; gap:8px;">
-			<span style="font-size:0.82rem; color:var(--text2);">Purchase price for next add:</span>
-			<span style="color:var(--text2);">$</span>
-			<input
-				type="number" min="0" step="0.01" placeholder="optional"
-				class="input" style="width:110px; height:28px; padding:3px 8px; font-family:'JetBrains Mono',monospace; font-size:0.82rem;"
-				bind:value={addPrice}
-			/>
-			{#if addPrice}
-				<button class="btn btn-ghost btn-sm" onclick={() => addPrice = ''}>Clear</button>
-			{/if}
+		<!-- Quantity + purchase price bar -->
+		<div style="padding: 8px 20px; border-bottom: 1px solid var(--border); background: var(--surface); display:flex; align-items:center; gap:16px; flex-wrap: wrap;">
+			<div style="display:flex; align-items:center; gap:8px;">
+				<span style="font-size:0.82rem; color:var(--text2);">Quantity for next add:</span>
+				<input
+					type="number" min="1" step="1" placeholder="1"
+					class="input" style="width:70px; height:28px; padding:3px 8px; font-family:'JetBrains Mono',monospace; font-size:0.82rem;"
+					bind:value={addQty}
+				/>
+				{#if addQty !== '1'}
+					<button class="btn btn-ghost btn-sm" onclick={() => addQty = '1'}>Reset</button>
+				{/if}
+			</div>
+			<div style="display:flex; align-items:center; gap:8px;">
+				<span style="font-size:0.82rem; color:var(--text2);">Purchase price for next add:</span>
+				<span style="color:var(--text2);">$</span>
+				<input
+					type="number" min="0" step="0.01" placeholder="optional"
+					class="input" style="width:110px; height:28px; padding:3px 8px; font-family:'JetBrains Mono',monospace; font-size:0.82rem;"
+					bind:value={addPrice}
+				/>
+				{#if addPrice}
+					<button class="btn btn-ghost btn-sm" onclick={() => addPrice = ''}>Clear</button>
+				{/if}
+			</div>
 		</div>
 		<div class="modal-body" style="display: grid; grid-template-columns: 280px 1fr; gap: 20px; align-items: start;">
 			<SearchPanel
@@ -206,7 +239,9 @@
 						onAdd={(c) => addCard(c)}
 						onAddFoil={(c) => addCard(c, true)}
 						onAddWanted={(c) => addWanted(c)}
+						onChoosePrinting={activeSystem !== 'RiftboundSQLite' && activeSystem !== 'PokemonSQLite' ? choosePrinting : undefined}
 						onclick={(c) => detailCard = c as AnyCard}
+						addQuantity={addQtyNum}
 						{total}
 						{page}
 						onPageChange={(p) => doSearch(p)}
@@ -221,4 +256,12 @@
 
 {#if detailCard}
 	<CardDetailModal card={detailCard} onclose={() => detailCard = null} />
+{/if}
+
+{#if printingPickerFor}
+	<PrintingPickerModal
+		cardName={printingPickerFor}
+		onSelect={printingSelected}
+		onclose={() => printingPickerFor = null}
+	/>
 {/if}

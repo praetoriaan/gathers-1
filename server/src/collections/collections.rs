@@ -1077,6 +1077,25 @@ pub fn collection_routes() -> ApiRouter<GathersState> {
             })
             .collect();
 
+        // Diagnostic: if a collection has cards but a filtered search comes back
+        // empty, this pinpoints which stage is responsible -- card_data being
+        // short of the collection size means the retrieval-system fetch is
+        // failing for some cards (check the warnings just above this line for
+        // why); card_data matching the collection size but matched still being
+        // empty means the filters themselves aren't matching anything, which
+        // points at `matches_card_filters` or the filter values being sent.
+        if matched.is_empty() {
+            let total_in_collection: usize = by_provider.values().map(|v| v.len()).sum();
+            if total_in_collection > 0 {
+                tracing::warn!(
+                    "collection_cards_search: 0 of {total_in_collection} collection card(s) matched \
+                     the filters (fetched card data for {} of them). filters = {:?}",
+                    card_data.len(),
+                    filters
+                );
+            }
+        }
+
         sort_collection_cards(&mut matched, &card_data, &filters.sort_by, &filters.sort_order);
 
         let page: Vec<CollectionCard> = matched

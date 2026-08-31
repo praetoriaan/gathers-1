@@ -5,6 +5,7 @@
 	import SearchPanel from '$lib/components/SearchPanel.svelte';
 	import CardResultsList from '$lib/components/CardResultsList.svelte';
 	import CardDetailModal from '$lib/components/CardDetailModal.svelte';
+	import PrintingPickerModal from '$lib/components/PrintingPickerModal.svelte';
 	import { searchMtg, searchRiftbound, searchPokemon, addCardToCollection, getMtgPrices, getPokemonPrices, PAGE_SIZE } from '$lib/api';
 	import { app } from '$lib/state.svelte';
 	import { defaultFilters } from '$lib/types';
@@ -23,8 +24,10 @@
 	let addTarget = $state<AnyCard | null>(null);
 	let addCollection = $state('');
 	let addPrice = $state('');
+	let addQty = $state('1');
 	let toast = $state('');
 	let detailCard = $state<AnyCard | null>(null);
+	let printingPickerFor = $state<string | null>(null);
 
 	// Pick first available system once loaded
 	$effect(() => {
@@ -179,17 +182,30 @@
 		if (!app.collectionsEnabled) return;
 		addTarget = card as AnyCard;
 		addPrice = '';
+		addQty = '1';
+	}
+
+	function choosePrinting(card: AnyCard | CollectionCard) {
+		if (!app.collectionsEnabled) return;
+		printingPickerFor = card.name;
+	}
+
+	function printingSelected(card: AnyCard) {
+		printingPickerFor = null;
+		promptAdd(card);
 	}
 
 	async function confirmAdd() {
 		if (!addTarget || !addCollection) return;
 		const price = addPrice !== '' ? parseFloat(addPrice) : null;
 		const purchasePrice = price != null && isFinite(price) && price > 0 ? price : null;
+		const qtyParsed = parseInt(addQty, 10);
+		const qty = Number.isFinite(qtyParsed) && qtyParsed > 0 ? qtyParsed : 1;
 		try {
-			await app.withOp(`Adding ${addTarget.name}`, () =>
-				addCardToCollection(addCollection, addTarget!.id, 1, 0, purchasePrice)
+			await app.withOp(`Adding ${qty > 1 ? `${qty}x ` : ''}${addTarget.name}`, () =>
+				addCardToCollection(addCollection, addTarget!.id, qty, 0, purchasePrice)
 			);
-			toast = `Added "${addTarget.name}" to ${addCollection}`;
+			toast = `Added ${qty > 1 ? `${qty}x ` : ''}"${addTarget.name}" to ${addCollection}`;
 			setTimeout(() => toast = '', 3000);
 		} catch (e) {
 			toast = `Error: ${e}`;
@@ -257,6 +273,7 @@
 					keyFn={(c) => c.id}
 					{prices}
 					onAdd={app.collectionsEnabled ? promptAdd : undefined}
+					onChoosePrinting={app.collectionsEnabled && activeSystem !== 'RiftboundSQLite' && activeSystem !== 'PokemonSQLite' ? choosePrinting : undefined}
 					onclick={(c) => detailCard = c as AnyCard}
 					{total}
 					{page}
@@ -280,6 +297,16 @@
 						<option value={col.id}>{col.id}</option>
 					{/each}
 				</select>
+				<div style="display:flex; align-items:center; gap:6px; margin-bottom:10px;">
+					<span style="color:var(--text2); font-size:0.85rem;">Quantity:</span>
+					<!-- svelte-ignore a11y_autofocus -->
+					<input
+						type="number" min="1" step="1" placeholder="1"
+						class="input" style="width:80px; height:32px; padding:4px 8px; font-family:'JetBrains Mono',monospace;"
+						bind:value={addQty}
+						autofocus
+					/>
+				</div>
 				<div style="display:flex; align-items:center; gap:6px; margin-bottom:16px;">
 					<span style="color:var(--text2); font-size:0.85rem;">Purchase price:</span>
 					<span style="color:var(--text2);">$</span>
@@ -302,4 +329,12 @@
 
 {#if detailCard}
 	<CardDetailModal card={detailCard} onclose={() => detailCard = null} />
+{/if}
+
+{#if printingPickerFor}
+	<PrintingPickerModal
+		cardName={printingPickerFor}
+		onSelect={printingSelected}
+		onclose={() => printingPickerFor = null}
+	/>
 {/if}

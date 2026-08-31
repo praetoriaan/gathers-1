@@ -84,6 +84,12 @@ pub struct CardSearchFilters {
     pub sort_by: Option<SortField>,
     #[serde(alias = "sortOrder")]
     pub sort_order: Option<SortOrder>,
+    /// MTG-only: when true, return every printing of a card (all sets/collector
+    /// numbers) instead of collapsing to one representative printing per name.
+    /// Intended for use together with an exact `name`, to let a caller pick the
+    /// specific print they own.
+    #[serde(alias = "allPrintings")]
+    pub all_printings: Option<bool>,
 }
 
 impl CardSearchFilters {
@@ -233,6 +239,11 @@ impl CardSearchFilters {
 
     pub fn with_sort_order(mut self, sort_order: SortOrder) -> Self {
         self.sort_order = Some(sort_order);
+        self
+    }
+
+    pub fn with_all_printings(mut self, all_printings: bool) -> Self {
+        self.all_printings = Some(all_printings);
         self
     }
 }
